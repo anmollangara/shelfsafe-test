@@ -15,43 +15,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  origin: process.env.CLIENT_URL || "http://localhost:5173", // Allows your Vercel URL, falls back to local
   credentials: true,
 }));
-
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 const posLogosPath = path.resolve(__dirname, '..', 'frontend', 'src', 'assets', 'pos');
 app.use('/pos-logos', express.static(posLogosPath));
 
-// --- Cached MongoDB Connection ---
-let cached = global.mongoose;
-if (!cached) cached = global.mongoose = { conn: null, promise: null };
+mongoose
+  .connect(process.env.MONGODB_URI, {serverSelectionTimeoutMS: 5000})// If it can't connect in 5s, fail fast
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch((err) => console.log('MongoDB connection error:', err));
 
-async function connectDB() {
-  if (cached.conn) return cached.conn;
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-    }).then((mongoose) => mongoose);
-  }
-  cached.conn = await cached.promise;
-  return cached.conn;
-}
-
-// Middleware to ensure DB is connected before any route
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-    res.status(500).json({ success: false, message: 'Database connection failed' });
-  }
-});
-
-// --- Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/medications', medicationRoutes);
 app.use('/api/profile', profileRoutes);
@@ -79,4 +56,9 @@ app.use((err, req, res, next) => {
   });
 });
 
+// const PORT = process.env.PORT || 5000;
+
+// app.listen(PORT, () => {
+//   console.log(`Server running on port ${PORT}`);
+// });
 export default app;

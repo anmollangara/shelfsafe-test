@@ -31,12 +31,21 @@ if (!cached) cached = global.mongoose = { conn: null, promise: null };
 
 async function connectDB() {
   if (cached.conn) return cached.conn;
+  
   if (!cached.promise) {
-    cached.promise = mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-    }).then((mongoose) => mongoose);
+    const opts = {
+      bufferCommands: false, // Prevents buffering/timeouts in Serverless environments
+      serverSelectionTimeoutMS: 10000, // 10 seconds timeout
+    };
+    cached.promise = mongoose.connect(process.env.MONGODB_URI, opts).then((mongoose) => mongoose);
   }
-  cached.conn = await cached.promise;
+  
+  try {
+    cached.conn = await cached.promise;
+  } catch (e) {
+    cached.promise = null;
+    throw e;
+  }
   return cached.conn;
 }
 

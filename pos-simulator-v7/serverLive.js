@@ -22,7 +22,9 @@ app.use(
 )
 
 app.use(express.json({ limit: '3mb' }))
-app.use(express.static(path.join(__dirname, 'public')))
+// app.use(express.static(path.join(__dirname, 'public')))
+app.use(express.static('public'));
+
 
 function authRequired (req, res, next) {
   const header = req.headers.authorization || ''

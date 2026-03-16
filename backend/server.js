@@ -8,63 +8,30 @@ import authRoutes from './routes/auth.js';
 import medicationRoutes from './routes/medications.js';
 import profileRoutes from './routes/profile.js';
 import posRoutes from './routes/pos.js';
+import reportRoutes from './routes/reports.js';
 
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true,
-}));
-
+app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 const posLogosPath = path.resolve(__dirname, '..', 'frontend', 'src', 'assets', 'pos');
 app.use('/pos-logos', express.static(posLogosPath));
 
-// --- Cached MongoDB Connection ---
-let cached = global.mongoose;
-if (!cached) cached = global.mongoose = { conn: null, promise: null };
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch((err) => console.log('MongoDB connection error:', err));
 
-async function connectDB() {
-  if (cached.conn) return cached.conn;
-  
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false, // Prevents buffering/timeouts in Serverless environments
-      serverSelectionTimeoutMS: 10000, // 10 seconds timeout
-    };
-    cached.promise = mongoose.connect(process.env.MONGODB_URI, opts).then((mongoose) => mongoose);
-  }
-  
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
-  }
-  return cached.conn;
-}
-
-// Middleware to ensure DB is connected before any route
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-    res.status(500).json({ success: false, message: 'Database connection failed' });
-  }
-});
-
-// --- Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/medications', medicationRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/pos', posRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -72,6 +39,9 @@ app.get('/api/health', (req, res) => {
     message: 'Server is running',
   });
 });
+
+const reportsPath = path.join(process.cwd(), 'uploads', 'reports');
+app.use('/files/reports', express.static(reportsPath));
 
 app.use((req, res) => {
   res.status(404).json({
@@ -88,4 +58,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-export default app;
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
